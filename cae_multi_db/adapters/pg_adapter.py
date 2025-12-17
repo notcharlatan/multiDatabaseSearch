@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-"""PostgreSQL适配器（支持表/列注释读取）"""
+"""PostgreSQL适配器（多线程安全+元信息读取）"""
 import psycopg2
 import pandas as pd
 from cae_multi_db.adapters.base_adapter import BaseDBAdapter
 
 class PGAdapter(BaseDBAdapter):
-    """PostgreSQL适配器（多线程安全+注释读取）"""
+    """PostgreSQL适配器（多线程安全）"""
     def __init__(self, db_id, db_info, user_auth):
         self.db_id = db_id
         self.db_info = db_info
@@ -30,54 +30,8 @@ class PGAdapter(BaseDBAdapter):
             self.close()
             return (False, error_msg)
 
-    def get_table_comment(self, table_name):
-        """获取表注释"""
-        if not self.conn:
-            if not self.connect()[0]:
-                return ""
-        try:
-            cursor = self.conn.cursor()
-            cursor.execute(f"""
-                SELECT obj_description(('%s'::regclass)::oid, 'pg_class')
-            """, (table_name,))
-            comment = cursor.fetchone()[0] if cursor.rowcount > 0 else ""
-            cursor.close()
-            return comment or f"表 {table_name}"
-        except Exception as e:
-            print(f"获取{table_name}注释失败：{str(e)}")
-            return f"表 {table_name}"
-
-    def get_table_meta(self, table_name, preview_rows=5):
-        """获取表的列名/注释/预览数据"""
-        if not self.conn:
-            if not self.connect()[0]:
-                return {"columns": [], "columns_comment": [], "preview_data": []}
-        try:
-            cursor = self.conn.cursor()
-            # 获取列名和注释
-            cursor.execute(f"""
-                SELECT column_name, column_comment
-                FROM information_schema.columns 
-                WHERE table_name = %s
-            """, (table_name,))
-            columns_info = cursor.fetchall()
-            columns = [col[0] for col in columns_info]
-            columns_comment = [col[1] if col[1] else col[0] for col in columns_info]
-            # 获取预览数据
-            cursor.execute(f"SELECT * FROM {table_name} LIMIT {preview_rows}")
-            preview_data = cursor.fetchall()
-            cursor.close()
-            return {
-                "columns": columns,
-                "columns_comment": columns_comment,
-                "preview_data": preview_data
-            }
-        except Exception as e:
-            print(f"获取{table_name}元信息失败：{str(e)}")
-            return {"columns": [], "columns_comment": [], "preview_data": []}
-
     def get_all_tables(self):
-        """获取数据库中所有表名+注释"""
+        """获取所有表名"""
         if not self.connect()[0]:
             return []
         try:
@@ -87,16 +41,37 @@ class PGAdapter(BaseDBAdapter):
                 FROM information_schema.tables 
                 WHERE table_schema = 'public'
             """)
-            tables = []
-            for t in cursor.fetchall():
-                table_name = t[0]
-                comment = self.get_table_comment(table_name)
-                tables.append({"name": table_name, "comment": comment})
+            tables = [t[0] for t in cursor.fetchall()]
             cursor.close()
             return tables
         except Exception as e:
             print(f"获取表列表失败：{str(e)}")
             return []
+
+    def get_table_meta(self, table_name, preview_rows=5):
+        """获取表元信息"""
+        if not self.connect()[0]:
+            return {"columns": [], "preview_data": []}
+        try:
+            cursor = self.conn.cursor()
+            # 获取列名
+            cursor.execute(f"""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = %s
+            """, (table_name,))
+            columns = [col[0] for col in cursor.fetchall()]
+            # 获取预览数据
+            cursor.execute(f"SELECT * FROM {table_name} LIMIT {preview_rows}")
+            preview_data = cursor.fetchall()
+            cursor.close()
+            return {
+                "columns": columns,
+                "preview_data": preview_data
+            }
+        except Exception as e:
+            print(f"获取{table_name}元信息失败：{str(e)}")
+            return {"columns": [], "preview_data": []}
 
     def _search_single_table(self, table_name, keyword):
         """检索单个表"""
