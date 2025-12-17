@@ -134,18 +134,18 @@ with tab1:
 
     st.divider()
 
-    # 已添加数据库列表（核心：元信息展示）
+    # 已添加数据库列表（核心改造：一个数据库一个独立展开框）
     st.markdown("### 📦 已添加数据库")
     if st.session_state.dynamic_dbs:
         for db_idx, db in enumerate(st.session_state.dynamic_dbs):
             db_id = db["db_id"]
             auth = st.session_state.user_auth.get(db_id, {})
 
-            # 数据库卡片
-            with st.container(border=True):
+            # 每个数据库一个独立的展开框（核心修改①）
+            with st.expander(f"📦 {db['db_alias']}（{db['db_type']}）", expanded=False):
+                # 数据库基本信息 + 操作按钮
                 col1, col2, col3 = st.columns([3, 1, 1])
                 with col1:
-                    st.markdown(f"#### {db['db_alias']}（{db['db_type']}）")
                     st.caption(f"ID：{db_id} | 主机：{db['host']}:{db['port']} | 库名：{db['database']}")
                     st.caption(f"描述：{db['description']}")
                 with col2:
@@ -166,77 +166,75 @@ with tab1:
                         add_log(logger, f"删除数据库：{db['db_alias']}（{db_id}）")
                         st.rerun()
 
-            # 权限验证区域
-            with st.expander("🔐 数据库连接配置", expanded=False):
-                col1, col2, col3 = st.columns([2, 2, 1])
-                with col1:
-                    user = st.text_input("用户名", value=auth.get("user", ""), key=f"user_{db_id}")
-                with col2:
-                    pwd = st.text_input("密码", type="password", value=auth.get("password", ""), key=f"pwd_{db_id}")
-                with col3:
-                    port = st.number_input("端口", value=auth.get("port", db["port"]),
-                                           min_value=1, max_value=65535, key=f"port_{db_id}")
-                    if st.button("测试连接", key=f"verify_{db_id}", use_container_width=True):
-                        with st.spinner("验证连接中..."):
-                            is_valid, msg = auth_manager.verify_db_auth(db_id, user, pwd, port)
-                            if is_valid:
-                                st.success(f"✅ {msg}")
-                                add_log(logger, f"验证数据库{db['db_alias']}连接成功：{msg}")
-                                # 加载表元信息
-                                with st.spinner("加载表元信息..."):
-                                    load_db_table_meta(db_id)
-                                    st.success("✅ 表元信息加载完成")
-                            else:
-                                st.error(f"❌ {msg}")
-                                add_log(logger, f"验证数据库{db['db_alias']}连接失败：{msg}")
+                # 1. 连接配置与测试（展开项）
+                with st.expander("🔌 连接配置与测试", expanded=False):
+                    col1, col2, col3 = st.columns([2, 2, 1])
+                    with col1:
+                        user = st.text_input("用户名", value=auth.get("user", ""), key=f"user_{db_id}")
+                    with col2:
+                        pwd = st.text_input("密码", type="password", value=auth.get("password", ""), key=f"pwd_{db_id}")
+                    with col3:
+                        port = st.number_input("端口", value=auth.get("port", db["port"]),
+                                               min_value=1, max_value=65535, key=f"port_{db_id}")
+                        if st.button("测试连接", key=f"verify_{db_id}", use_container_width=True):
+                            with st.spinner("验证连接中..."):
+                                is_valid, msg = auth_manager.verify_db_auth(db_id, user, pwd, port)
+                                if is_valid:
+                                    st.success(f"✅ {msg}")
+                                    add_log(logger, f"验证数据库{db['db_alias']}连接成功：{msg}")
+                                    # 加载表元信息
+                                    with st.spinner("加载表元信息..."):
+                                        load_db_table_meta(db_id)
+                                        st.success("✅ 表元信息加载完成")
+                                else:
+                                    st.error(f"❌ {msg}")
+                                    add_log(logger, f"验证数据库{db['db_alias']}连接失败：{msg}")
 
-            # 表元信息展示（仅验证通过后显示）
-            if auth.get("is_verified", False):
-                with st.expander("📋 表结构与数据预览", expanded=True):
-                    table_meta = db.get("table_meta", {})
-                    if not table_meta:
-                        st.info("点击上方「测试连接」加载表元信息")
-                    else:
-                        enabled_tables = get_enabled_tables(st.session_state, db_id)
-                        st.caption(f"共{len(table_meta)}张表，其中{len(enabled_tables)}张启用检索")
+                # 2. 表结构与数据预览（仅验证通过后显示）
+                if auth.get("is_verified", False):
+                    with st.expander("📋 表结构与数据预览", expanded=False):
+                        table_meta = db.get("table_meta", {})
+                        if not table_meta:
+                            st.info("点击上方「测试连接」加载表元信息")
+                        else:
+                            enabled_tables = get_enabled_tables(st.session_state, db_id)
+                            st.caption(f"共{len(table_meta)}张表，其中{len(enabled_tables)}张启用检索")
 
-                        for table_name, meta in table_meta.items():
-                            with st.container(border=True):
-                                # 表名+启用检索
-                                col1, col2 = st.columns([3, 1])
-                                with col1:
-                                    st.markdown(f"**表名：{table_name}**")
-                                with col2:
-                                    table_enable = st.checkbox(
-                                        "检索该表",
-                                        value=meta.get("enable_search", True),
-                                        key=f"table_enable_{db_id}_{table_name}",
-                                        help="勾选后，该表会参与检索"
-                                    )
-                                    if table_enable != meta.get("enable_search", True):
-                                        update_table_enable_search(st.session_state, db_id, table_name, table_enable)
-                                        st.rerun()
+                            for table_name, meta in table_meta.items():
+                                # 表名大写+加黑（核心修改②）
+                                st.markdown(f"**{table_name.upper()}**")
+                                # 列名：大写+加黑展示（核心修改②）
+                                st.markdown(f"**列名：** {' | '.join([col.upper() for col in meta['columns']])}")
 
-                                # 列名展示
-                                st.markdown("**列名：**")
-                                col_str = " | ".join(meta["columns"])
-                                st.code(col_str)
+                                # 前5条数据预览：去掉外层框、列名大写（核心修改②）
+                                st.markdown("**前5条数据预览：**")
+                                if meta["preview_data"]:
+                                    preview_df = pd.DataFrame(meta["preview_data"], columns=meta["columns"])
+                                    # 列名转为大写
+                                    preview_df.columns = [col.upper() for col in preview_df.columns]
+                                    # 展示数据：仅保留基础样式，移除额外框体（适配1.52.1版本）
+                                    st.dataframe(preview_df, use_container_width=True, hide_index=True)
+                                else:
+                                    st.info("该表暂无数据")
 
-                                # 数据预览
-                                with st.expander("📄 前5条数据预览", expanded=False):
-                                    if meta["preview_data"]:
-                                        preview_df = pd.DataFrame(meta["preview_data"], columns=meta["columns"])
-                                        st.dataframe(preview_df, use_container_width=True, hide_index=True)
-                                    else:
-                                        st.info("该表暂无数据")
-            else:
-                st.info("请先完成数据库连接验证，查看表结构与数据预览")
-
+                                # 检索该表的勾选框
+                                table_enable = st.checkbox(
+                                    "检索该表",
+                                    value=meta.get("enable_search", True),
+                                    key=f"table_enable_{db_id}_{table_name}",
+                                    help="勾选后，该表会参与检索"
+                                )
+                                if table_enable != meta.get("enable_search", True):
+                                    update_table_enable_search(st.session_state, db_id, table_name, table_enable)
+                                    st.rerun()
+                                st.divider()
+                else:
+                    st.info("🔒 请先完成数据库连接验证，查看表结构与数据预览")
         st.divider()
     else:
         st.info("暂无添加的数据库，点击上方「新增数据库」添加")
 
-# ====================== 标签页2：一键检索（删除数据库选择） ======================
+# ====================== 标签页2：一键检索（核心修改③：删除检索关键词文字） ======================
 with tab2:
     st.subheader("🎯 跨库全列检索（所有启用的数据库）")
 
@@ -245,7 +243,7 @@ with tab2:
     col1, col2 = st.columns([3, 1])
     with col1:
         keyword = st.text_input(
-            label="输入检索关键词",
+            label="",  # 核心修改③：删除"输入检索关键词"文字
             placeholder="支持全列模糊检索，例如：材料、Q355B、2003.guo",
             key="search_keyword",
             help="检索所有启用的数据库中所有启用的表"
@@ -308,13 +306,11 @@ with tab2:
         end_idx = min(start_idx + page_size, len(result_df))
         display_df = result_df.iloc[start_idx:end_idx].copy()
 
-
         # 关键词高亮
         def highlight_keyword(text, kw):
             if pd.isna(text) or not kw:
                 return text
             return str(text).replace(kw, f"**{kw}**")
-
 
         for col in display_df.columns:
             if display_df[col].dtype == "object":
