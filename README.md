@@ -4,9 +4,12 @@
 
 ## 环境要求
 - Python 3.8+
-- MySQL 5.7+/PostgreSQL 12+（可选）
+- MySQL 5.7+/PostgreSQL 12+
 
 ## 快速启动
 1. 安装依赖
+
 ```bash
 pip install -r requirements.txt
+```
+2. 运行bin/start_app.py启动app版程序，运行bin/start_web.py从浏览器启动该程序

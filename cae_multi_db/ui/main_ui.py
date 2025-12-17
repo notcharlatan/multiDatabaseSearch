@@ -238,13 +238,12 @@ with tab1:
 with tab2:
     st.subheader("🎯 跨库全列检索（所有启用的数据库）")
 
-    # 检索配置
-    st.markdown("### ⚙️ 检索配置")
+
     col1, col2 = st.columns([3, 1])
     with col1:
         keyword = st.text_input(
-            label="",  # 核心修改③：删除"输入检索关键词"文字
-            placeholder="支持全列模糊检索，例如：材料、Q355B、2003.guo",
+            label="输入检索关键词",
+            placeholder="支持全列模糊检索，例如：材料、35m/s",
             key="search_keyword",
             help="检索所有启用的数据库中所有启用的表"
         )
@@ -266,7 +265,7 @@ with tab2:
         add_log(logger, f"用户发起一键检索，关键词：{keyword}")
         with st.spinner("正在检索所有启用的数据库，请稍候..."):
             start_time = time.time()
-            # 执行检索（多线程安全）
+            # 执行检索（改回单线程）
             result_df = search_engine.search_all_enabled_dbs(keyword)
             end_time = time.time()
             cost_time = round(end_time - start_time, 2)

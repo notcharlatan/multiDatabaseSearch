@@ -21,9 +21,9 @@ DB_TYPE_TEMPLATES = {
         "db_alias": "PostgreSQL数据库",
         "host": "localhost",
         "port": 5432,
-        "database": "preprae",
-        "tables": "material",
-        "description": "支持全表全列模糊检索",
+        "database": "cae_archive_db",
+        "tables": "history_simulation",
+        "description": "用户：postgres，密码：2003.guo",
         "is_extend": False
     },
     "qdrant": {
