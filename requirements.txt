@@ -1,0 +1,6 @@
+# CAE多数据库检索工具核心依赖（匹配Python 3.10.19环境）
+streamlit==1.52.1          # 前端界面核心
+PyMySQL==1.1.2             # MySQL数据库连接
+psycopg2-binary==2.9.11    # PostgreSQL数据库连接
+pandas==2.3.3              # 数据处理/结果合并
+openpyxl==3.1.2            # Excel格式导出（核心导出功能依赖）
